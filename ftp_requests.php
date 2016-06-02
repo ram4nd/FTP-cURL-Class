@@ -14,8 +14,9 @@ class Ftp {
   private $username;
   private $password;
   private $server;
+  private $options;
 
-  private $curl_handle;
+  private $ch;
   private $url;
 
   /**
@@ -23,29 +24,21 @@ class Ftp {
    *
    * @var string $username
    * @var string $password
-   * @var string $initial_path
-   * @var integer $port
+   * @var string $path
+   * @var number $port
    *
    * @throws Exception
    */
-  public function __construct($username, $password, $server, $initial_path = '/', $port = 21) {
+  public function __construct($username, $password, $server, $path = '/', $port = 21) {
     $this->username = $username;
     $this->password = $password;
     $this->server = $server;
 
     // Set host/initial path.
-    $this->url = "ftp://{$server}{$initial_path}";
-
-    // Setup connection.
-    $this->curl_handle = curl_init();
-
-    // Check for successful connection.
-    if (!$this->curl_handle) {
-      throw new Exception('Could not initialize cURL.');
-    }
+    $this->url = 'ftp://' . $server . $path;
 
     // Connection options.
-    $options = array(
+    $this->options = array(
       CURLOPT_USERPWD        => $username . ':' . $password,
       CURLOPT_SSL_VERIFYPEER => false,
       CURLOPT_SSL_VERIFYHOST => false,
@@ -57,16 +50,8 @@ class Ftp {
       CURLOPT_TIMEOUT        => 30,
       CURLOPT_HEADER         => false,
       CURLOPT_RETURNTRANSFER => 1,
+      CURLOPT_FTPLISTONLY    => 0,
     );
-
-    // Set connection options, use foreach so useful errors can be caught
-    // instead of a generic "cannot set options" error with curl_setopt_array().
-    foreach ($options as $option_name => $option_value) {
-      if (!curl_setopt($this->curl_handle, $option_name, $option_value)) {
-        throw new Exception(sprintf('Could not set cURL option: %s', $option_name));
-      }
-    }
-
   }
 
   /**
@@ -76,12 +61,13 @@ class Ftp {
    *
    * @return array
    */
-  public function ftpFileList() {
-    if (!curl_setopt($this->curl_handle, CURLOPT_URL, $this->url)) {
-      throw new Exception ("Could not set cURL directory: $this->url");
+  public function files() {
+    $this->_init();
+    if (!curl_setopt($this->ch, CURLOPT_URL, $this->url)) {
+      throw new Exception ('Could not set cURL directory: ' . $this->url);
     }
-    curl_setopt($this->curl_handle, CURLOPT_FTPLISTONLY, 1);
-    $result = curl_exec($this->curl_handle) or die (curl_error($this->curl_handle));
+    curl_setopt($this->ch, CURLOPT_FTPLISTONLY, 1);
+    $result = curl_exec($this->ch) or die (curl_error($this->ch));
     $files = explode("\n",trim($result));
     if (count($files)) {
       return $files;
@@ -92,29 +78,66 @@ class Ftp {
   }
 
   /**
-   * Download remote file to the given location.
+   * Download remote files content.
    *
    * @var string $file_name
    *
    * @return string
    */
   public function download($file_name) {
+    $this->_init();
     $file = tmpfile();
-    curl_setopt($this->curl_handle, CURLOPT_URL, $this->url . $file_name);
-    curl_setopt($this->curl_handle, CURLOPT_FTPLISTONLY, 0);
-    curl_setopt($this->curl_handle, CURLOPT_FOLLOWLOCATION, 1);
-    curl_setopt($this->curl_handle, CURLOPT_FILE, $file);
-    $result = curl_exec($this->curl_handle);
+    curl_setopt($this->ch, CURLOPT_URL, $this->url . $file_name);
+    curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, 1);
+    curl_setopt($this->ch, CURLOPT_FILE, $file);
+    $result = curl_exec($this->ch);
     $file_contents = file_get_contents(stream_get_meta_data($file)['uri']);
     fclose($file);
     return $file_contents;
   }
 
   /**
+   * Delete remote file.
+   *
+   * @var string $file_name
+   *
+   * @return string
+   */
+  public function delete($file_name) {
+    $this->_init();
+    curl_setopt($this->ch, CURLOPT_URL, $this->url);
+    curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, 1);
+    curl_setopt($this->ch, CURLOPT_QUOTE, array('DELE ' . $file_name));
+    $result = curl_exec($this->ch);
+    return $result;
+  }
+
+  /**
+   * Initialise cURL handle.
+   */
+  private function _init() {
+    // Setup connection.
+    $this->ch = curl_init();
+
+    // Check for successful connection.
+    if (!$this->ch) {
+      throw new Exception('Could not initialize cURL.');
+    }
+
+    // Set connection options, use foreach so useful errors can be caught
+    // instead of a generic "cannot set options" error with curl_setopt_array().
+    foreach ($this->options as $option_name => $option_value) {
+      if (!curl_setopt($this->ch, $option_name, $option_value)) {
+        throw new Exception(sprintf('Could not set cURL option: %s', $option_name));
+      }
+    }
+  }
+
+  /**
    * Attempt to close cURL handle.
    */
   public function __destruct() {
-    @curl_close($this->curl_handle);
+    @curl_close($this->ch);
   }
 
 }
