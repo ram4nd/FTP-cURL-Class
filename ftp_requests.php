@@ -14,6 +14,7 @@ class Ftp {
   private $username;
   private $password;
   private $server;
+  private $path;
   private $options;
 
   private $ch;
@@ -36,6 +37,7 @@ class Ftp {
 
     // Set host/initial path.
     $this->url = 'ftp://' . $server . $path;
+    $this->path = $path;
 
     // Connection options.
     $this->options = array(
@@ -82,6 +84,8 @@ class Ftp {
    *
    * @var string $file_name
    *
+   * @throws Exception
+   *
    * @return string
    */
   public function download($file_name) {
@@ -91,6 +95,11 @@ class Ftp {
     curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, 1);
     curl_setopt($this->ch, CURLOPT_FILE, $file);
     $result = curl_exec($this->ch);
+
+    if ($result === false) {
+      throw new Exception(curl_error($this->ch));
+    }
+
     $file_contents = file_get_contents(stream_get_meta_data($file)['uri']);
     fclose($file);
     return $file_contents;
@@ -101,14 +110,21 @@ class Ftp {
    *
    * @var string $file_name
    *
+   * @throws Exception
+   *
    * @return string
    */
   public function delete($file_name) {
     $this->_init();
     curl_setopt($this->ch, CURLOPT_URL, $this->url);
     curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, 1);
-    curl_setopt($this->ch, CURLOPT_QUOTE, array('DELE ' . $file_name));
+    curl_setopt($this->ch, CURLOPT_QUOTE, array('DELE ' . $this->path . $file_name));
     $result = curl_exec($this->ch);
+
+    if ($result === false) {
+      throw new Exception(curl_error($this->ch));
+    }
+
     return $result;
   }
 
