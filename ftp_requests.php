@@ -20,6 +20,13 @@ class Ftp {
 
   /**
    * Setup and init connection.
+   *
+   * @var string $username
+   * @var string $password
+   * @var string $initial_path
+   * @var integer $port
+   *
+   * @throws Exception
    */
   public function __construct($username, $password, $server, $initial_path = '/', $port = 21) {
     $this->username = $username;
@@ -63,8 +70,10 @@ class Ftp {
   }
 
   /**
-   * @return array of file names
+   * Return array of file names.
+   *
    * @throws Exception
+   *
    * @return array
    */
   public function ftpFileList() {
@@ -83,7 +92,11 @@ class Ftp {
   }
 
   /**
-   * Download remote file to the given location
+   * Download remote file to the given location.
+   *
+   * @var string $file_name
+   *
+   * @return string
    */
   public function download($file_name) {
     $file = tmpfile();
